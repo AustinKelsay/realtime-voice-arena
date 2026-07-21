@@ -1,0 +1,34 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Validate tag matches manifest
+        run: test "v$(node -p "require('./benchlocal.pack.json').version")" = "$GITHUB_REF_NAME"
+      - name: Assemble standalone bundle
+        run: |
+          mkdir -p release/realtime-voice-arena
+          cp -R dist public src test release/realtime-voice-arena/
+          cp benchlocal.pack.json index.html server.mjs package.json package-lock.json README.md LICENSE release/realtime-voice-arena/
+          cd release
+          zip -qr "realtime-voice-arena-${GITHUB_REF_NAME}.zip" realtime-voice-arena
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/realtime-voice-arena-*.zip

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": 1,
+  "type": "web",
+  "id": "realtime-voice-arena",
+  "name": "Realtime Voice Arena",
+  "author": "finitecomputer",
+  "version": "0.2.2",
+  "description": "Trusted continuous PersonaPlex 7B v1 voice conversation evaluation surface with bounded binary audio and operational session history.",
+  "requirements": { "benchlocal": { "minVersion": "0.3.0" } },
+  "entry": "http://127.0.0.1:5177/",
+  "web": {
+    "bridgeVersion": 1,
+    "allowedOrigins": ["http://127.0.0.1:5177"],
+    "permissions": ["runs:write", "history:read", "history:write"],
+    "historyPlayback": true,
+    "buildId": "realtime-voice-arena-0.2.2",
+    "dataPolicy": {
+      "mayUseRemoteServices": true,
+      "remoteOrigins": ["wss://inference.finite.computer"],
+      "sendsModelOutputs": false,
+      "sendsRunMetadata": false,
+      "description": "Live microphone Ogg/Opus is sent through a loopback credential relay to the authenticated Finite realtime endpoint. BenchLocal history stores operational session fields only; it does not retain audio or semantic content."
+    }
+  },
+  "capabilities": { "tools": false, "multiTurn": true, "streamingProgress": true, "verification": false }
+}
