@@ -74,9 +74,9 @@ test("UI exposes only the continuous conversation controls and states", () => {
 
 test("history schema is content-free and model identity is PersonaPlex", () => {
   const manifest = JSON.parse(read("benchlocal.pack.json"));
-  assert.equal(manifest.version, "0.3.0");
+  assert.equal(manifest.version, "0.3.1");
   assert.equal(manifest.capabilities.multiTurn, true);
-  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.3\.0/);
+  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.3\.1/);
   assert.match(JSON.stringify(manifest), /personaplex/i);
 
   const metadata = sessionHistoryMetadata({

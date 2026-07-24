@@ -8,8 +8,10 @@ source for the pack; the Spark cluster consumes it as a pinned dependency.
 
 This BenchLocal web pack is the trusted evaluation surface for one continuous
 PersonaPlex 7B v1 conversation. Before starting, the operator chooses one of
-twelve made-up personas backed only by NVIDIA's bundled voice prompts. The UI
-shows a short audition cue for comparing the roster. Start conversation
+twelve neutral named voice identities backed only by NVIDIA's bundled voice
+prompts. Names do not assign professions, specialties, or task-specific
+characters. The UI uses one shared audition cue so the voices can be compared
+on equal footing. Start conversation
 requests the microphone, opens the local binary relay, waits for the
 PersonaPlex handshake, and then streams mono Ogg/Opus pages at 24 kHz while
 response audio is decoded and played continuously. Stop conversation releases

@@ -118,12 +118,24 @@ test("operator can choose one of twelve default personas before a conversation",
   view.render({ ...snapshot({ status: "ready", startedAt: null }), personaId: DEFAULT_PERSONA_ID });
   assert.equal(app.querySelector("#persona").value, DEFAULT_PERSONA_ID);
   assert.equal(app.querySelector("#persona").disabled, false);
-  assert.match(app.querySelector("#persona-summary").textContent, /study coach/i);
+  assert.match(app.querySelector("#persona-summary").textContent, /warm and composed/i);
   assert.match(app.querySelector("#persona-cue").textContent, /Introduce yourself/i);
 
   app.querySelector("#persona").change("mira-vale");
   assert.deepEqual(selected, ["mira-vale"]);
   view.render({ ...snapshot(), personaId: "mira-vale" });
   assert.equal(app.querySelector("#persona").disabled, true);
-  assert.match(app.querySelector("#persona-summary").textContent, /science guide/i);
+  assert.match(app.querySelector("#persona-summary").textContent, /clear and curious/i);
+});
+
+test("roster presents neutral named voices instead of task-specific characters", () => {
+  const taskLanguage = /\b(?:coach|concierge|coordinator|guide|host|master|mentor|planner|producer|storyteller)\b/i;
+  const cues = new Set(PERSONA_ROSTER.map((persona) => persona.auditionCue));
+
+  assert.deepEqual([...cues], [
+    "Please introduce yourself, then tell me what makes a conversation enjoyable. Take your time and speak naturally.",
+  ]);
+  for (const persona of PERSONA_ROSTER) {
+    assert.doesNotMatch(persona.summary, taskLanguage);
+  }
 });

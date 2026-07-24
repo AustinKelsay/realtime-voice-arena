@@ -5,8 +5,8 @@
   "id": "realtime-voice-arena",
   "name": "Realtime Voice Arena",
   "author": "finitecomputer",
-  "version": "0.3.0",
-  "description": "Trusted continuous PersonaPlex 7B v1 voice conversation evaluation surface with a twelve-persona bundled-voice roster, bounded binary audio, and operational session history.",
+  "version": "0.3.1",
+  "description": "Trusted continuous PersonaPlex 7B v1 voice conversation evaluation surface with twelve neutral named bundled voices, bounded binary audio, and operational session history.",
   "requirements": { "benchlocal": { "minVersion": "0.3.0" } },
   "entry": "http://127.0.0.1:5177/",
   "web": {
@@ -14,7 +14,7 @@
     "allowedOrigins": ["http://127.0.0.1:5177"],
     "permissions": ["runs:write", "history:read", "history:write"],
     "historyPlayback": true,
-    "buildId": "realtime-voice-arena-0.3.0",
+    "buildId": "realtime-voice-arena-0.3.1",
     "dataPolicy": {
       "mayUseRemoteServices": true,
       "remoteOrigins": ["wss://inference.finite.computer"],
