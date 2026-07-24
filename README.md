@@ -6,12 +6,14 @@ An independently versioned BenchLocal web pack extracted from the
 finitecomputer/spark-cluster monorepo. This repository is the authoritative
 source for the pack; the Spark cluster consumes it as a pinned dependency.
 
-This BenchLocal web pack is the trusted evaluation surface for one continuous
-PersonaPlex 7B v1 conversation. Before starting, the operator chooses one of
+This BenchLocal web pack is the trusted evaluation surface for PersonaPlex 7B
+v1. Before starting, the operator chooses one of
 twelve neutral named voice identities backed only by NVIDIA's bundled voice
 prompts. Names do not assign professions, specialties, or task-specific
-characters. The UI uses one shared audition cue so the voices can be compared
-on equal footing. Start conversation
+characters.
+
+The **Conversation** tab uses one shared audition cue so the voices can be
+compared on equal footing. Start conversation
 requests the microphone, opens the local binary relay, waits for the
 PersonaPlex handshake, and then streams mono Ogg/Opus pages at 24 kHz while
 response audio is decoded and played continuously. Stop conversation releases
@@ -20,6 +22,18 @@ a local speech-onset gate flushes the playback queue and suppresses response
 playback while the user is speaking; the suppression remains latched until
 PersonaPlex yields an audible gap. The WebSocket remains open so PersonaPlex
 keeps the same conversation context.
+
+The **Text repeat** tab has its own synchronized voice selector and an
+800-character text area. Speak text sends the pasted value only to a
+loopback-only, same-origin endpoint. The local macOS `say` and `afconvert`
+tools turn it into a short spoken instruction without putting text in a URL or
+process argument. The browser decodes that ephemeral WAV, streams it through
+the same Ogg/Opus PersonaPlex session, and plays the selected voice's response.
+The temporary local files are removed before the request completes. The text,
+instruction audio, response audio, and semantic output are never written to
+BenchLocal history or application logs. Text repeat is an instruction-following
+audition, so PersonaPlex can paraphrase or add words; it is not a deterministic
+TTS endpoint.
 
 The selector is a candidate evaluation surface, not an admitted production
 capability. Its relay requires a gateway running the matching
@@ -35,10 +49,11 @@ The browser client has one deliberately deep lifecycle boundary:
   generation fencing, audio and transport resource ownership, handshake and
   frame routing, interruption playback yield, stop/error cleanup, and
   content-free history finalization. Its caller-facing surface is limited to
-  persona selection, start, stop, history restore, and state snapshots.
+  persona selection, microphone start, pasted-text start, stop, history restore,
+  and state snapshots.
 - `src/browser-platform.js` is the browser system-boundary adapter. It pins the
-  AudioContext, AudioWorklet, Opus recorder, decoder worker, WebSocket, and timer
-  construction used by the runtime.
+  AudioContext, AudioWorklet, Opus recorder, decoder worker, WebSocket,
+  loopback speech-input request, and timer construction used by the runtime.
 - `src/main.js` is only the BenchLocal host adapter. It wires the mounted view
   to runtime snapshots and forwards Start, Stop, history, and host-stop events.
 - `src/conversation-view.js` mounts the interactive controls once and updates
@@ -48,6 +63,10 @@ The browser client has one deliberately deep lifecycle boundary:
   Audio acquisition, decoder prewarm, and the speech-onset gate stay as focused
   modules because they independently own asynchronous or signal-processing
   behavior.
+- `speech-input.mjs` is the loopback HTTP boundary for pasted text. It accepts
+  only same-origin JSON on `/speech-input`, bounds the body and text, invokes
+  fixed macOS executables without a shell, returns uncached mono WAV, and
+  removes its private temporary directory.
 
 `test/conversation-runtime.test.js` exercises the same runtime interface used by
 the page with fakes only at browser, transport, time, and BenchLocal boundaries.
@@ -84,6 +103,8 @@ npm run dev
 Install `http://127.0.0.1:5177/benchlocal.pack.json` in BenchLocal. The pack
 requires a caller key authorized for the Finite realtime gateway; publishing
 this client does not publish that credential or grant access to the service.
+The Text repeat tab additionally requires macOS because its ephemeral input
+speech is produced by the built-in `/usr/bin/say` and `/usr/bin/afconvert`.
 
 Tagged releases contain a standalone bundle with the built UI, local
 credential relay, source, tests, and manifest. After extracting a release, run
@@ -120,7 +141,11 @@ not model weights or the Spark deployment.
   named roster entries, including `sora-bennett`, are selected only by their
   opaque allowlisted IDs. The gateway's unnamed no-query compatibility preset
   remains separate.
+- Pasted text is limited to 800 Unicode characters. `/speech-input` accepts
+  only loopback, exact-origin `POST application/json` requests, returns
+  `Cache-Control: no-store`, and never forwards literal text to the realtime
+  URL or BenchLocal history.
 
 History stores only model/session status, timing, byte/frame and interruption
-counts, and a terminal reason. Audio, semantic content, prompts, and
-credentials are never stored.
+counts, and a terminal reason. Pasted text, instruction audio, response audio,
+semantic content, prompts, and credentials are never stored.

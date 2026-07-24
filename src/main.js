@@ -56,6 +56,7 @@ async function initialize() {
     app,
     onPersonaChange: runtime.selectPersona,
     onStart: () => { void runtime.start().catch(() => {}); },
+    onRepeat: (text) => { void runtime.startText(text).catch(() => {}); },
     onStop: () => { void runtime.stop("user_stop").catch(() => {}); },
   });
   const capabilities = await benchlocal.capabilities();
@@ -67,6 +68,7 @@ async function initialize() {
   render();
   window.realtimeVoiceArena = Object.freeze({
     start: runtime.start,
+    startText: runtime.startText,
     stop: runtime.stop,
     getState: runtime.getState,
   });

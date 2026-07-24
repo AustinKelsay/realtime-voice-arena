@@ -16,6 +16,7 @@ export function createBrowserPlatform({
   locationHost = globalThis.location?.host,
   performanceClock = globalThis.performance,
   timerHost = globalThis,
+  fetchImpl = globalThis.fetch,
 } = {}) {
   if (typeof RecorderClass !== "function") throw new Error("Opus recorder constructor is required.");
   if (typeof encoderPath !== "string" || encoderPath.length === 0) throw new Error("Opus encoder worker path is required.");
@@ -33,6 +34,32 @@ export function createBrowserPlatform({
     createDecoderWorker: () => new WorkerClass("/assets/decoderWorker.min.js"),
     getUserMedia: (constraints) => mediaDevices.getUserMedia(constraints),
     createCaptureContext: () => new AudioContextClass({ sampleRate: AUDIO_RATE }),
+    async createTextCapture(text) {
+      const response = await fetchImpl("/speech-input", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) throw new Error("Could not prepare pasted text for PersonaPlex.");
+      const context = new AudioContextClass({ sampleRate: AUDIO_RATE });
+      try {
+        await context.resume();
+        const decoded = await context.decodeAudioData(await response.arrayBuffer());
+        const source = context.createBufferSource();
+        source.buffer = decoded;
+        return {
+          stream: null,
+          context,
+          source,
+          start: () => source.start(),
+        };
+      } catch (error) {
+        await context.close?.().catch(() => {});
+        throw error;
+      }
+    },
     createRecorder: (sourceNode) => new RecorderClass({
       sourceNode,
       encoderPath,

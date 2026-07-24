@@ -2,6 +2,7 @@ import { acquireCapture, acquirePlayback } from "./audio-resources.js";
 import { createBargeInGate } from "./barge-in-gate.js";
 import { createDecoderPrewarm } from "./decoder-prewarm.js";
 import { DEFAULT_PERSONA_ID, findPersona } from "./persona-roster.js";
+import { normalizeRepeatText } from "./repeat-contract.js";
 import {
   AUDIO_RATE,
   MAX_CLIENT_FRAME_BYTES,
@@ -67,6 +68,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     stream: null,
     captureContext: null,
     captureSource: null,
+    captureStart: null,
     captureAnalyser: null,
     microphoneMonitor: null,
     bargeInGate: null,
@@ -156,46 +158,73 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     if (state.decoderAbort === controller.abort) state.decoderAbort = null;
   }
 
-  async function setupCapture(generation) {
+  function configureRecorder(generation, recorder) {
+    recorder.ondataavailable = (page) => {
+      if (!isCurrent(generation) || state.recorder !== recorder) return;
+      try {
+        const socket = state.socket;
+        if (!socket || socket.readyState !== platform.socketOpen || state.session.status !== "live") return;
+        const frame = binaryAudioFrame(page);
+        if (socket.bufferedAmount + frame.byteLength > MAX_RELAY_PENDING_BYTES) throw new Error("Realtime relay buffer is full.");
+        socket.send(frame);
+        state.session.inputBytes += frame.byteLength;
+        state.session.inputFrames += 1;
+        emitState();
+      } catch (error) {
+        void fail(error);
+      }
+    };
+    recorder.onstart = () => {
+      if (!isCurrent(generation) || state.recorder !== recorder) {
+        closeRecorder(recorder);
+        return;
+      }
+      state.recorderStarted = true;
+      const captureStart = state.captureStart;
+      state.captureStart = null;
+      try { captureStart?.(); } catch (error) { void fail(error); }
+      emitState();
+    };
+  }
+
+  async function setupCapture(generation, input) {
     let recorder;
-    const capture = await acquireCapture({
-      isCurrent: () => isCurrent(generation),
-      getUserMedia: platform.getUserMedia,
-      createContext: platform.createCaptureContext,
-      createRecorder: platform.createRecorder,
-      configureRecorder: (value) => {
-        recorder = value;
-        recorder.ondataavailable = (page) => {
-          if (!isCurrent(generation) || state.recorder !== recorder) return;
-          try {
-            const socket = state.socket;
-            if (!socket || socket.readyState !== platform.socketOpen || state.session.status !== "live") return;
-            const frame = binaryAudioFrame(page);
-            if (socket.bufferedAmount + frame.byteLength > MAX_RELAY_PENDING_BYTES) throw new Error("Realtime relay buffer is full.");
-            socket.send(frame);
-            state.session.inputBytes += frame.byteLength;
-            state.session.inputFrames += 1;
-            emitState();
-          } catch (error) {
-            void fail(error);
-          }
-        };
-        recorder.onstart = () => {
-          if (!isCurrent(generation) || state.recorder !== recorder) {
-            closeRecorder(recorder);
-            return;
-          }
-          state.recorderStarted = true;
-          emitState();
-        };
-      },
-      constraints: CAPTURE_CONSTRAINTS,
-    });
+    let capture;
+    if (input.kind === "text") {
+      capture = await platform.createTextCapture(input.text);
+      if (!isCurrent(generation)) {
+        try { capture.source?.disconnect(); } catch { /* cleanup continues */ }
+        await capture.context?.close().catch(() => {});
+        return;
+      }
+      try {
+        recorder = platform.createRecorder(capture.source);
+        configureRecorder(generation, recorder);
+      } catch (error) {
+        try { capture.source?.disconnect(); } catch { /* cleanup continues */ }
+        await capture.context?.close().catch(() => {});
+        throw error;
+      }
+      state.captureStart = capture.start;
+    } else {
+      capture = await acquireCapture({
+        isCurrent: () => isCurrent(generation),
+        getUserMedia: platform.getUserMedia,
+        createContext: platform.createCaptureContext,
+        createRecorder: platform.createRecorder,
+        configureRecorder: (value) => {
+          recorder = value;
+          configureRecorder(generation, recorder);
+        },
+        constraints: CAPTURE_CONSTRAINTS,
+      });
+    }
     state.stream = capture.stream;
     state.captureContext = capture.context;
     state.captureSource = capture.source;
-    state.recorder = capture.recorder;
+    state.recorder = recorder ?? capture.recorder;
 
+    if (input.kind === "text") return;
     const analyser = capture.context.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0;
@@ -297,7 +326,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     });
   }
 
-  async function startImpl() {
+  async function startImpl(input) {
     if (ACTIVE_STATUSES.has(state.session.status) || state.finalizing || state.historyMode) return;
     state.generation += 1;
     const generation = state.generation;
@@ -315,7 +344,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
       if (!isCurrent(generation)) return;
       await setupDecoder(generation);
       if (!isCurrent(generation)) return;
-      await setupCapture(generation);
+      await setupCapture(generation, input);
       if (!isCurrent(generation)) return;
       await openSocket(generation);
       if (isCurrent(generation)) emitState();
@@ -374,6 +403,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
       recorderStarted: false,
       stream: null,
       captureSource: null,
+      captureStart: null,
       captureAnalyser: null,
       microphoneMonitor: null,
       captureContext: null,
@@ -483,16 +513,28 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
   let starting = null;
   let stopping = null;
 
-  function start() {
+  function startWith(input) {
     if (stopping) return stopping;
     if (starting) return starting;
-    const promise = Promise.resolve().then(startImpl);
+    const promise = Promise.resolve().then(() => startImpl(input));
     starting = promise;
     promise.then(
       () => { if (starting === promise) starting = null; },
       () => { if (starting === promise) starting = null; },
     );
     return promise;
+  }
+
+  function start() {
+    return startWith({ kind: "microphone" });
+  }
+
+  function startText(value) {
+    try {
+      return startWith({ kind: "text", text: normalizeRepeatText(value) });
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   function stop(reason = "user_stop") {
@@ -509,6 +551,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
 
   return Object.freeze({
     start,
+    startText,
     stop,
     selectPersona,
     restoreHistory,

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import WebSocket, { WebSocketServer } from "ws";
+import { createSpeechInputHandler } from "./speech-input.mjs";
 import { MAX_CLIENT_FRAME_BYTES, MAX_RELAY_PENDING_BYTES, MAX_SERVER_FRAME_BYTES, PROTOCOL, createSession, validateFrame } from "./src/protocol.js";
 import { DEFAULT_PERSONA_ID, findPersona } from "./src/persona-roster.js";
 
@@ -172,8 +173,13 @@ export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM
 export async function startServer({ credential, port = PORT } = {}) {
   credential ||= await loadCredential();
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
-  const server = http.createServer((request, response) => vite.middlewares(request, response));
-  const relay = attachRealtimeRelay(server, { credential, origin: `http://${HOST}:${port}` });
+  const origin = `http://${HOST}:${port}`;
+  const speechInput = createSpeechInputHandler({ origin });
+  const server = http.createServer(async (request, response) => {
+    if (await speechInput(request, response)) return;
+    vite.middlewares(request, response);
+  });
+  const relay = attachRealtimeRelay(server, { credential, origin });
   await new Promise((resolve) => server.listen(port, HOST, resolve));
   process.stdout.write(`PersonaPlex Realtime Arena ready at http://${HOST}:${port}\n`);
   let closing;

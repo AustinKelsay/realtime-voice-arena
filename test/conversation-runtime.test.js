@@ -70,6 +70,8 @@ function createHarness({
   const events = [];
   let microphoneLevel = 0;
   let captureConstraints;
+  let textCaptureText;
+  let textCaptureStarted = false;
   const track = { stopped: false, stop() { this.stopped = true; } };
   const stream = { getTracks: () => [track] };
   const analyser = {
@@ -143,6 +145,15 @@ function createHarness({
     createDecoderWorker: () => worker,
     getUserMedia: async (constraints) => { captureConstraints = constraints; return stream; },
     createCaptureContext: () => captureContext,
+    createTextCapture: async (text) => {
+      textCaptureText = text;
+      return {
+        stream: null,
+        context: captureContext,
+        source: captureSource,
+        start() { textCaptureStarted = true; },
+      };
+    },
     createRecorder: () => recorder,
     createSocket: (personaId) => {
       platform.personaId = personaId;
@@ -190,6 +201,8 @@ function createHarness({
     stream,
     timeouts,
     track,
+    get textCaptureStarted() { return textCaptureStarted; },
+    get textCaptureText() { return textCaptureText; },
     worker,
   };
 }
@@ -273,6 +286,28 @@ test("conversation runtime locks the selected persona for one active session", a
   harness.runtime.selectPersona("otis-blake");
   assert.equal(harness.runtime.getState().personaId, "otis-blake");
   assert.throws(() => harness.runtime.selectPersona("unknown"), /Unknown PersonaPlex persona/);
+});
+
+test("text-repeat session starts ephemeral pasted-text audio after the PersonaPlex handshake", async () => {
+  const harness = createHarness();
+  harness.runtime.selectPersona("otis-blake");
+
+  const starting = harness.runtime.startText("The quick brown fox.");
+  await waitFor(() => harness.platform.socket);
+  harness.platform.socket.open();
+  await starting;
+  assert.equal(harness.textCaptureText, "The quick brown fox.");
+  assert.equal(harness.textCaptureStarted, false);
+  assert.equal(harness.captureConstraints, undefined);
+  assert.equal(harness.platform.personaId, "otis-blake");
+
+  harness.platform.socket.emit("message", { data: new Uint8Array([0x00]).buffer });
+  await waitFor(() => harness.textCaptureStarted);
+  assert.equal(harness.runtime.getState().session.status, "live");
+
+  harness.recorder.emitPage(new Uint8Array([0x44]));
+  assert.deepEqual([...harness.platform.socket.sent[0]], [0x01, 0x44]);
+  await harness.runtime.stop();
 });
 
 test("conversation runtime yields assistant playback on user speech without closing the session", async () => {

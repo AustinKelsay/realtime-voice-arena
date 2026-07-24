@@ -66,6 +66,54 @@ test("browser adapter pins PersonaPlex media, codec, worker, and relay construct
   });
 });
 
+test("browser adapter turns pasted text into a startable ephemeral audio source", async () => {
+  const requests = [];
+  const decoded = { id: "decoded-wav" };
+  const source = {
+    buffer: null,
+    started: false,
+    connect() {},
+    disconnect() {},
+    start() { this.started = true; },
+  };
+  class AudioContextClass {
+    constructor() { this.sampleRate = 24_000; }
+    async resume() {}
+    async decodeAudioData(value) {
+      assert.ok(value instanceof ArrayBuffer);
+      return decoded;
+    }
+    createBufferSource() { return source; }
+  }
+  class RecorderClass {}
+  class WebSocketClass {
+    static OPEN = 1;
+    static CLOSING = 2;
+  }
+  const platform = createBrowserPlatform({
+    RecorderClass,
+    encoderPath: "/encoder.js",
+    AudioContextClass,
+    WebSocketClass,
+    fetchImpl: async (url, options) => {
+      requests.push([url, options]);
+      return {
+        ok: true,
+        async arrayBuffer() { return new Uint8Array([1, 2, 3]).buffer; },
+      };
+    },
+  });
+
+  const capture = await platform.createTextCapture("The quick brown fox.");
+  assert.equal(requests[0][0], "/speech-input");
+  assert.deepEqual(JSON.parse(requests[0][1].body), { text: "The quick brown fox." });
+  assert.equal(requests[0][1].cache, "no-store");
+  assert.equal(capture.source, source);
+  assert.equal(source.buffer, decoded);
+  capture.start();
+  assert.equal(source.started, true);
+});
+
 test("UI exposes only the continuous conversation controls and states", () => {
   const source = `${read("src/main.js")}\n${read("src/conversation-view.js")}`;
   for (const label of ["Start conversation", "Stop conversation"]) assert.match(source, new RegExp(label));
@@ -74,9 +122,9 @@ test("UI exposes only the continuous conversation controls and states", () => {
 
 test("history schema is content-free and model identity is PersonaPlex", () => {
   const manifest = JSON.parse(read("benchlocal.pack.json"));
-  assert.equal(manifest.version, "0.3.1");
+  assert.equal(manifest.version, "0.4.0");
   assert.equal(manifest.capabilities.multiTurn, true);
-  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.3\.1/);
+  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.4\.0/);
   assert.match(JSON.stringify(manifest), /personaplex/i);
 
   const metadata = sessionHistoryMetadata({

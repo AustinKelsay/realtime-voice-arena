@@ -44,6 +44,15 @@ class FakeApp {
       ["#duration-metric", new FakeElement()],
       ["#interruptions-metric", new FakeElement()],
       ["#error", new FakeElement()],
+      ["#conversation-tab", new FakeElement()],
+      ["#repeat-tab", new FakeElement()],
+      ["#conversation-panel", new FakeElement()],
+      ["#repeat-panel", new FakeElement()],
+      ["#repeat-persona", new FakeElement()],
+      ["#repeat-text", new FakeElement()],
+      ["#repeat-start", new FakeElement()],
+      ["#repeat-stop", new FakeElement()],
+      ["#repeat-validation", new FakeElement()],
     ]);
     this.htmlWrites = 0;
   }
@@ -84,6 +93,7 @@ test("live counter updates preserve the stop control and its listener", () => {
     app,
     onPersonaChange() {},
     onStart() {},
+    onRepeat() {},
     onStop() { stops += 1; },
   });
   const stop = app.querySelector("#stop");
@@ -109,6 +119,7 @@ test("operator can choose one of twelve default personas before a conversation",
     app,
     onPersonaChange(personaId) { selected.push(personaId); },
     onStart() {},
+    onRepeat() {},
     onStop() {},
   });
 
@@ -126,6 +137,50 @@ test("operator can choose one of twelve default personas before a conversation",
   view.render({ ...snapshot(), personaId: "mira-vale" });
   assert.equal(app.querySelector("#persona").disabled, true);
   assert.match(app.querySelector("#persona-summary").textContent, /clear and curious/i);
+});
+
+test("operator can select a voice and submit pasted text from a second tab", () => {
+  const app = new FakeApp();
+  const selected = [];
+  const repeated = [];
+  const view = createConversationView({
+    app,
+    onPersonaChange(personaId) { selected.push(personaId); },
+    onStart() {},
+    onRepeat(text) { repeated.push(text); },
+    onStop() {},
+  });
+
+  assert.match(app.html, /Conversation/);
+  assert.match(app.html, /Text repeat/);
+  assert.match(app.html, /Paste text for the selected voice/i);
+
+  app.querySelector("#repeat-tab").click();
+  assert.equal(app.querySelector("#conversation-panel").hidden, true);
+  assert.equal(app.querySelector("#repeat-panel").hidden, false);
+
+  app.querySelector("#repeat-persona").change("otis-blake");
+  assert.deepEqual(selected, ["otis-blake"]);
+
+  app.querySelector("#repeat-text").value = "  The quick brown fox.  ";
+  app.querySelector("#repeat-start").click();
+  assert.deepEqual(repeated, ["The quick brown fox."]);
+
+  app.querySelector("#repeat-text").value = "😀".repeat(800);
+  app.querySelector("#repeat-start").click();
+  assert.equal(repeated.at(-1), "😀".repeat(800));
+  app.querySelector("#repeat-text").value = "😀".repeat(801);
+  app.querySelector("#repeat-start").click();
+  assert.equal(repeated.length, 2);
+  assert.match(app.querySelector("#repeat-validation").textContent, /800 characters/);
+
+  view.render({ ...snapshot({ status: "ready", startedAt: null }), personaId: "otis-blake" });
+  assert.equal(app.querySelector("#repeat-persona").value, "otis-blake");
+  assert.equal(app.querySelector("#repeat-start").disabled, false);
+  assert.equal(app.querySelector("#repeat-text").disabled, false);
+
+  view.render({ ...snapshot(), personaId: "otis-blake" });
+  assert.equal(app.querySelector("#repeat-text").disabled, true);
 });
 
 test("roster presents neutral named voices instead of task-specific characters", () => {
