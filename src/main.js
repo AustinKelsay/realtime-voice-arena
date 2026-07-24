@@ -54,6 +54,7 @@ async function initialize() {
 
   view = createConversationView({
     app,
+    onPersonaChange: runtime.selectPersona,
     onStart: () => { void runtime.start().catch(() => {}); },
     onStop: () => { void runtime.stop("user_stop").catch(() => {}); },
   });

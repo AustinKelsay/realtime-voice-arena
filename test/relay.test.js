@@ -49,13 +49,15 @@ async function fixture({ rejectUpstream = false, delayHandshake = false, malform
 test("relay authenticates upstream and preserves binary Persona frames", async () => {
   const { upstreamWss, relayPort } = await fixture();
   let authorization;
+  let upstreamRequestUrl;
   upstreamWss.on("connection", (socket, request) => {
     authorization = request.headers.authorization;
+    upstreamRequestUrl = request.url;
     socket.send(new Uint8Array([0x00]));
     setTimeout(() => socket.send(new Uint8Array([0x02, 0x6f, 0x6b])), 10);
     socket.on("message", (frame, binary) => { assert.equal(binary, true); socket.send(frame, { binary: true }); });
   });
-  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
+  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime?persona=mira-vale`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
   const [handshake] = await once(client, "message");
   assert.deepEqual([...handshake], [0]);
   const [semantic] = await once(client, "message");
@@ -65,6 +67,7 @@ test("relay authenticates upstream and preserves binary Persona frames", async (
   const [echo] = await once(client, "message");
   assert.deepEqual([...echo], [...payload]);
   assert.equal(authorization, "Bearer test-key");
+  assert.equal(upstreamRequestUrl, "/?persona=mira-vale");
   client.close();
 });
 
@@ -113,6 +116,11 @@ test("relay rejects non-loopback origins and non-exact paths", async () => {
   const path = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime?x=1`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
   const [pathError] = await once(path, "unexpected-response").catch((error) => [error]);
   assert.ok(pathError);
+  for (const query of ["?persona=unknown", "?persona=mira-vale&persona=otis-blake", "?persona=..%2FNATF0.pt"]) {
+    const selected = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime${query}`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
+    const [selectionError] = await once(selected, "unexpected-response").catch((error) => [error]);
+    assert.ok(selectionError);
+  }
 });
 
 test("relay fails closed on upstream rejection without exposing details", async () => {

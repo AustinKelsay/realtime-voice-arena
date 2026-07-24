@@ -7,14 +7,23 @@ finitecomputer/spark-cluster monorepo. This repository is the authoritative
 source for the pack; the Spark cluster consumes it as a pinned dependency.
 
 This BenchLocal web pack is the trusted evaluation surface for one continuous
-PersonaPlex 7B v1 conversation. Start conversation requests the microphone,
-opens the local binary relay, waits for the PersonaPlex handshake, and then
-streams mono Ogg/Opus pages at 24 kHz while response audio is decoded and played
-continuously. Stop conversation releases every browser resource and closes the
-session. While assistant audio is active, a local speech-onset gate flushes the
-playback queue and suppresses response playback while the user is speaking;
-the suppression remains latched until PersonaPlex yields an audible gap. The
-WebSocket remains open so PersonaPlex keeps the same conversation context.
+PersonaPlex 7B v1 conversation. Before starting, the operator chooses one of
+twelve made-up personas backed only by NVIDIA's bundled voice prompts. The UI
+shows a short audition cue for comparing the roster. Start conversation
+requests the microphone, opens the local binary relay, waits for the
+PersonaPlex handshake, and then streams mono Ogg/Opus pages at 24 kHz while
+response audio is decoded and played continuously. Stop conversation releases
+every browser resource and closes the session. While assistant audio is active,
+a local speech-onset gate flushes the playback queue and suppresses response
+playback while the user is speaking; the suppression remains latched until
+PersonaPlex yields an audible gap. The WebSocket remains open so PersonaPlex
+keeps the same conversation context.
+
+The selector is a candidate evaluation surface, not an admitted production
+capability. Its relay requires a gateway running the matching
+fingerprint-bound promotion attempt with persona selection enabled. The
+currently admitted no-query route remains the unnamed legacy
+teacher/`NATF2.pt` compatibility preset and does not prove any named persona.
 
 ## Client architecture
 
@@ -24,7 +33,7 @@ The browser client has one deliberately deep lifecycle boundary:
   generation fencing, audio and transport resource ownership, handshake and
   frame routing, interruption playback yield, stop/error cleanup, and
   content-free history finalization. Its caller-facing surface is limited to
-  start, stop, history restore, and state snapshots.
+  persona selection, start, stop, history restore, and state snapshots.
 - `src/browser-platform.js` is the browser system-boundary adapter. It pins the
   AudioContext, AudioWorklet, Opus recorder, decoder worker, WebSocket, and timer
   construction used by the runtime.
@@ -46,7 +55,8 @@ transport recovery, and read-only history. Static source checks are retained
 only for literal UI/legacy-policy assertions; codec and lifecycle contracts are
 verified through behavior.
 
-The browser connects only to `ws://127.0.0.1:5177/realtime`. The Loopback
+The browser connects only to
+`ws://127.0.0.1:5177/realtime?persona=<allowlisted-id>`. The Loopback
 Credential Relay loads the operator trust domain's normal Pi API Key Gateway
 caller key from `~/.config/finite/benchlocal-realtime.key` (the compatibility
 default filename) or the `BENCHLOCAL_REALTIME_API_KEY_FILE` override, requiring
@@ -54,7 +64,9 @@ mode `0600`; `BENCHLOCAL_REALTIME_API_KEY` is an explicit ephemeral override.
 The key must grant the `finite-realtime-session-gateway` API definition. It is
 not a second BenchLocal authentication system and must never reuse the protected
 `finite-specialization` key. The relay authenticates the fixed public endpoint
-`wss://inference.finite.computer/v1/realtime`. The credential never reaches the
+`wss://inference.finite.computer/v1/realtime` and forwards only the validated
+persona ID. Both relays independently reject unknown IDs, duplicate values,
+extra query parameters, filenames, and paths. The credential never reaches the
 page, history, or logs. Both directions are binary-only, bounded, and
 byte-preserving; optional server semantic frames are validated and ignored.
 
@@ -102,6 +114,10 @@ not model weights or the Spark deployment.
   about 60 ms of speech, tolerates about 240 ms of pauses inside the user's
   phrase, then keeps playback yielded until PersonaPlex supplies about 320 ms
   of silence. It never sends a turn-commit or closes the continuous session.
+- Persona selection is locked while a conversation is active. All twelve
+  named roster entries, including `sora-bennett`, are selected only by their
+  opaque allowlisted IDs. The gateway's unnamed no-query compatibility preset
+  remains separate.
 
 History stores only model/session status, timing, byte/frame and interruption
 counts, and a terminal reason. Audio, semantic content, prompts, and

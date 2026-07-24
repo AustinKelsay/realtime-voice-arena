@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import WebSocket, { WebSocketServer } from "ws";
 import { MAX_CLIENT_FRAME_BYTES, MAX_RELAY_PENDING_BYTES, MAX_SERVER_FRAME_BYTES, PROTOCOL, createSession, validateFrame } from "./src/protocol.js";
+import { DEFAULT_PERSONA_ID, findPersona } from "./src/persona-roster.js";
 
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.REALTIME_VOICE_BENCH_PORT || 5177);
@@ -59,14 +60,29 @@ export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM
   let checkClose = () => {};
 
   server.on("upgrade", (request, socket, head) => {
-    if (request.url !== "/realtime" || request.headers.origin !== origin || !isLoopback(request.socket.remoteAddress)) return rejectUpgrade(socket);
-    localSockets.handleUpgrade(request, socket, head, (client) => localSockets.emit("connection", client));
+    const url = new URL(request.url, `http://${HOST}`);
+    const keys = [...url.searchParams.keys()];
+    const personaValues = url.searchParams.getAll("persona");
+    const personaId = personaValues[0] ?? DEFAULT_PERSONA_ID;
+    if (
+      url.pathname !== "/realtime"
+      || keys.some((key) => key !== "persona")
+      || personaValues.length > 1
+      || !findPersona(personaId)
+      || request.headers.origin !== origin
+      || !isLoopback(request.socket.remoteAddress)
+    ) return rejectUpgrade(socket);
+    localSockets.handleUpgrade(request, socket, head, (client) => {
+      localSockets.emit("connection", client, request, personaId);
+    });
   });
 
-  localSockets.on("connection", (client) => {
+  localSockets.on("connection", (client, _request, personaId) => {
     let upstream;
     try {
-      upstream = new WebSocketCtor(upstreamUrl, { headers: { Authorization: `Bearer ${credential}` }, handshakeTimeout: 10_000, maxPayload: MAX_SERVER_FRAME_BYTES });
+      const selectedUpstream = new URL(upstreamUrl);
+      selectedUpstream.searchParams.set("persona", personaId);
+      upstream = new WebSocketCtor(selectedUpstream, { headers: { Authorization: `Bearer ${credential}` }, handshakeTimeout: 10_000, maxPayload: MAX_SERVER_FRAME_BYTES });
     } catch {
       closeSocket(client, 1011, "Realtime transport failed.");
       return;

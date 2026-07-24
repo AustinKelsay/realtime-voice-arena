@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createConversationView } from "../src/conversation-view.js";
+import { DEFAULT_PERSONA_ID, PERSONA_ROSTER } from "../src/persona-roster.js";
 
 class FakeElement {
   constructor() {
@@ -19,6 +20,11 @@ class FakeElement {
   click() {
     this.listeners.get("click")?.();
   }
+
+  change(value) {
+    this.value = value;
+    this.listeners.get("change")?.({ target: this });
+  }
 }
 
 class FakeApp {
@@ -29,6 +35,9 @@ class FakeApp {
       ["#orb-status", new FakeElement()],
       ["#start", new FakeElement()],
       ["#stop", new FakeElement()],
+      ["#persona", new FakeElement()],
+      ["#persona-summary", new FakeElement()],
+      ["#persona-cue", new FakeElement()],
       ["#metrics", new FakeElement()],
       ["#input-metric", new FakeElement()],
       ["#output-metric", new FakeElement()],
@@ -71,7 +80,12 @@ function snapshot(overrides = {}) {
 test("live counter updates preserve the stop control and its listener", () => {
   const app = new FakeApp();
   let stops = 0;
-  const view = createConversationView({ app, onStart() {}, onStop() { stops += 1; } });
+  const view = createConversationView({
+    app,
+    onPersonaChange() {},
+    onStart() {},
+    onStop() { stops += 1; },
+  });
   const stop = app.querySelector("#stop");
 
   view.render(snapshot({ status: "ready", startedAt: null }));
@@ -86,4 +100,30 @@ test("live counter updates preserve the stop control and its listener", () => {
   assert.equal(app.querySelector("#input-metric").textContent, "200 frames · 2 B");
   stop.click();
   assert.equal(stops, 1);
+});
+
+test("operator can choose one of twelve default personas before a conversation", () => {
+  const app = new FakeApp();
+  const selected = [];
+  const view = createConversationView({
+    app,
+    onPersonaChange(personaId) { selected.push(personaId); },
+    onStart() {},
+    onStop() {},
+  });
+
+  assert.equal(PERSONA_ROSTER.length, 12);
+  assert.match(app.html, /Sora Bennett/);
+  assert.match(app.html, /Otis Blake/);
+  view.render({ ...snapshot({ status: "ready", startedAt: null }), personaId: DEFAULT_PERSONA_ID });
+  assert.equal(app.querySelector("#persona").value, DEFAULT_PERSONA_ID);
+  assert.equal(app.querySelector("#persona").disabled, false);
+  assert.match(app.querySelector("#persona-summary").textContent, /study coach/i);
+  assert.match(app.querySelector("#persona-cue").textContent, /Introduce yourself/i);
+
+  app.querySelector("#persona").change("mira-vale");
+  assert.deepEqual(selected, ["mira-vale"]);
+  view.render({ ...snapshot(), personaId: "mira-vale" });
+  assert.equal(app.querySelector("#persona").disabled, true);
+  assert.match(app.querySelector("#persona-summary").textContent, /science guide/i);
 });

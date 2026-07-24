@@ -144,7 +144,8 @@ function createHarness({
     getUserMedia: async (constraints) => { captureConstraints = constraints; return stream; },
     createCaptureContext: () => captureContext,
     createRecorder: () => recorder,
-    createSocket: () => {
+    createSocket: (personaId) => {
+      platform.personaId = personaId;
       platform.socket = new FakeSocket();
       return platform.socket;
     },
@@ -256,6 +257,22 @@ test("conversation runtime owns a complete start, handshake, stream, and stop li
   assert.deepEqual(harness.events.map(([name]) => name), ["runs.start", "history.save", "runs.progress", "runs.stop"]);
   const history = harness.events.find(([name]) => name === "history.save")[1];
   assert.deepEqual(Object.keys(history.metadata).sort(), ["bargeIns", "durationMs", "inputBytes", "inputFrames", "model", "outputBytes", "outputFrames", "status", "terminalReason"].sort());
+});
+
+test("conversation runtime locks the selected persona for one active session", async () => {
+  const harness = createHarness();
+  assert.equal(harness.runtime.getState().personaId, "sora-bennett");
+
+  harness.runtime.selectPersona("mira-vale");
+  assert.equal(harness.runtime.getState().personaId, "mira-vale");
+  await startLive(harness);
+  assert.equal(harness.platform.personaId, "mira-vale");
+  assert.throws(() => harness.runtime.selectPersona("otis-blake"), /active conversation/);
+
+  await harness.runtime.stop();
+  harness.runtime.selectPersona("otis-blake");
+  assert.equal(harness.runtime.getState().personaId, "otis-blake");
+  assert.throws(() => harness.runtime.selectPersona("unknown"), /Unknown PersonaPlex persona/);
 });
 
 test("conversation runtime yields assistant playback on user speech without closing the session", async () => {
