@@ -106,6 +106,19 @@ this client does not publish that credential or grant access to the service.
 The Text repeat tab additionally requires macOS because its ephemeral input
 speech is produced by the built-in `/usr/bin/say` and `/usr/bin/afconvert`.
 
+When the public realtime route is intentionally withdrawn, an operator may run
+the loopback relay directly against the fixed Spark PersonaPlex endpoint:
+
+```bash
+BENCHLOCAL_PERSONAPLEX_DIRECT=true \
+BENCHLOCAL_REALTIME_API_KEY_FILE=/path/to/private-upstream-token \
+  npm run dev
+```
+
+Direct mode remains bound to `127.0.0.1`, accepts only the compiled roster IDs,
+and resolves each ID to its fixed bundled voice and text prompts. It is a local
+recovery path only; it does not publish or admit the public realtime route.
+
 Tagged releases contain a standalone bundle with the built UI, local
 credential relay, source, tests, and manifest. After extracting a release, run
 `npm install` and `npm run dev`, then install the loopback manifest URL

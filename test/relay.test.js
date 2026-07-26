@@ -27,7 +27,7 @@ function once(socket, event) {
   });
 }
 
-async function fixture({ rejectUpstream = false, delayHandshake = false, malformed = false, oversized = false } = {}) {
+async function fixture({ rejectUpstream = false, delayHandshake = false, malformed = false, oversized = false, directUpstream = false } = {}) {
   const upstreamHttp = http.createServer((request, response) => {
     if (rejectUpstream) { response.writeHead(503); response.end(); }
   });
@@ -35,7 +35,7 @@ async function fixture({ rejectUpstream = false, delayHandshake = false, malform
   const upstreamWss = rejectUpstream ? null : new WebSocketServer({ server: upstreamHttp });
   const relayHttp = http.createServer();
   const relayPort = await listen(relayHttp);
-  const relay = attachRealtimeRelay(relayHttp, { credential: "test-key", upstreamUrl: `ws://127.0.0.1:${upstreamPort}`, origin: `http://127.0.0.1:${relayPort}` });
+  const relay = attachRealtimeRelay(relayHttp, { credential: "test-key", upstreamUrl: `ws://127.0.0.1:${upstreamPort}`, origin: `http://127.0.0.1:${relayPort}`, directUpstream });
   active.push(async () => { await relay.close(); await new Promise((resolve) => relayHttp.close(resolve)); if (upstreamWss) upstreamWss.close(); await new Promise((resolve) => upstreamHttp.close(resolve)); });
   if (upstreamWss && (delayHandshake || malformed || oversized)) upstreamWss.on("connection", (socket) => {
     const sendHandshake = () => socket.send(new Uint8Array([0x00]));
@@ -68,6 +68,24 @@ test("relay authenticates upstream and preserves binary Persona frames", async (
   assert.deepEqual([...echo], [...payload]);
   assert.equal(authorization, "Bearer test-key");
   assert.equal(upstreamRequestUrl, "/?persona=mira-vale");
+  client.close();
+});
+
+test("loopback-only direct recovery resolves the selected persona to fixed upstream prompts", async () => {
+  const { upstreamWss, relayPort } = await fixture({ directUpstream: true });
+  let upstreamRequestUrl;
+  upstreamWss.on("connection", (socket, request) => {
+    upstreamRequestUrl = request.url;
+    socket.send(new Uint8Array([0x00]));
+  });
+  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime?persona=otis-blake`, {
+    headers: { Origin: `http://127.0.0.1:${relayPort}` },
+  });
+  await once(client, "message");
+  const parsed = new URL(upstreamRequestUrl, "ws://upstream.invalid");
+  assert.equal(parsed.searchParams.get("voice_prompt"), "VARM2.pt");
+  assert.match(parsed.searchParams.get("text_prompt"), /Your name is Otis Blake/);
+  assert.equal(parsed.searchParams.has("persona"), false);
   client.close();
 });
 

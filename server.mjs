@@ -12,6 +12,7 @@ import { DEFAULT_PERSONA_ID, findPersona } from "./src/persona-roster.js";
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.REALTIME_VOICE_BENCH_PORT || 5177);
 export const UPSTREAM = "wss://inference.finite.computer/v1/realtime";
+export const DIRECT_UPSTREAM = "ws://100.69.70.86:8998/api/chat";
 export const MAX_PENDING_BYTES = MAX_RELAY_PENDING_BYTES;
 const DEFAULT_KEY_PATH = join(homedir(), ".config", "finite", "benchlocal-realtime.key");
 const VALID_CREDENTIAL = (value) => value && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
@@ -53,7 +54,7 @@ function bytesOf(value) {
   return value instanceof Uint8Array ? value : new Uint8Array(value);
 }
 
-export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM, origin = `http://${HOST}:${PORT}`, WebSocketCtor = WebSocket } = {}) {
+export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM, origin = `http://${HOST}:${PORT}`, WebSocketCtor = WebSocket, directUpstream = false } = {}) {
   if (!credential || credential.length > 256) throw new Error("Realtime credential was unavailable.");
   const localSockets = new WebSocketServer({ noServer: true, maxPayload: MAX_CLIENT_FRAME_BYTES });
   const sessions = new Set();
@@ -82,7 +83,16 @@ export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM
     let upstream;
     try {
       const selectedUpstream = new URL(upstreamUrl);
-      selectedUpstream.searchParams.set("persona", personaId);
+      if (directUpstream) {
+        const persona = findPersona(personaId);
+        selectedUpstream.searchParams.set("voice_prompt", persona.voicePrompt);
+        selectedUpstream.searchParams.set(
+          "text_prompt",
+          `You enjoy having a good conversation. Your name is ${persona.name}. Speak naturally and conversationally. Be warm, attentive, and easy to talk with.`,
+        );
+      } else {
+        selectedUpstream.searchParams.set("persona", personaId);
+      }
       upstream = new WebSocketCtor(selectedUpstream, { headers: { Authorization: `Bearer ${credential}` }, handshakeTimeout: 10_000, maxPayload: MAX_SERVER_FRAME_BYTES });
     } catch {
       closeSocket(client, 1011, "Realtime transport failed.");
@@ -170,7 +180,11 @@ export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM
   };
 }
 
-export async function startServer({ credential, port = PORT } = {}) {
+export async function startServer({
+  credential,
+  port = PORT,
+  directUpstream = process.env.BENCHLOCAL_PERSONAPLEX_DIRECT === "true",
+} = {}) {
   credential ||= await loadCredential();
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
   const origin = `http://${HOST}:${port}`;
@@ -179,7 +193,12 @@ export async function startServer({ credential, port = PORT } = {}) {
     if (await speechInput(request, response)) return;
     vite.middlewares(request, response);
   });
-  const relay = attachRealtimeRelay(server, { credential, origin });
+  const relay = attachRealtimeRelay(server, {
+    credential,
+    origin,
+    upstreamUrl: directUpstream ? DIRECT_UPSTREAM : UPSTREAM,
+    directUpstream,
+  });
   await new Promise((resolve) => server.listen(port, HOST, resolve));
   process.stdout.write(`PersonaPlex Realtime Arena ready at http://${HOST}:${port}\n`);
   let closing;
