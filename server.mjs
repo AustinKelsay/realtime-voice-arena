@@ -13,7 +13,14 @@ import { DEFAULT_PERSONA_ID, findPersona } from "./src/persona-roster.js";
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.REALTIME_VOICE_BENCH_PORT || 5177);
 export const UPSTREAM = "wss://inference.finite.computer/v1/realtime";
-export const DIRECT_UPSTREAM = "ws://100.69.70.86:8998/api/chat";
+export const DIRECT_RECOVERY_TARGET = Object.freeze({
+  host: "100.69.70.86",
+  sshUser: "finite",
+  websocketPort: 8998,
+  websocketPath: "/api/chat",
+  tokenPath: "/home/finite/personaplex-runtime/upstream.token",
+});
+export const DIRECT_UPSTREAM = `ws://${DIRECT_RECOVERY_TARGET.host}:${DIRECT_RECOVERY_TARGET.websocketPort}${DIRECT_RECOVERY_TARGET.websocketPath}`;
 export const MAX_PENDING_BYTES = MAX_RELAY_PENDING_BYTES;
 const DEFAULT_KEY_PATH = join(homedir(), ".config", "finite", "benchlocal-realtime.key");
 const VALID_CREDENTIAL = (value) => value && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
@@ -43,8 +50,8 @@ export function loadDirectCredential({ execFileSyncImpl = execFileSync } = {}) {
       [
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=5",
-        "finite@100.69.70.86",
-        "cat /home/finite/personaplex-runtime/upstream.token",
+        `${DIRECT_RECOVERY_TARGET.sshUser}@${DIRECT_RECOVERY_TARGET.host}`,
+        `cat ${DIRECT_RECOVERY_TARGET.tokenPath}`,
       ],
       { encoding: "utf8", maxBuffer: 1024 },
     ).trim();

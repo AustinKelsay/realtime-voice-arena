@@ -121,6 +121,16 @@ When no explicit credential is supplied, startup reads the fixed upstream token
 directly into memory over batch-mode SSH from the pinned Spark path. It does not
 write a local token copy.
 
+Install the durable macOS user service with:
+
+```bash
+node install-launch-agent.mjs
+```
+
+The generated LaunchAgent uses the current Node executable and checkout path,
+starts at login, and restarts the loopback relay if it exits. Its plist contains
+no credential.
+
 Tagged releases contain a standalone bundle with the built UI, local
 credential relay, source, tests, and manifest. After extracting a release, run
 `npm install` and `npm run dev`, then install the loopback manifest URL
