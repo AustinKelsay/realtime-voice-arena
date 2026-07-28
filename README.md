@@ -1,5 +1,17 @@
 # PersonaPlex Realtime Voice Arena
 
+## Fast local demo
+
+```bash
+npm run demo
+```
+
+This installs or refreshes the durable loopback relay, waits for the pack to
+become ready, proves one named PersonaPlex connection, and opens BenchLocal.
+Install `http://127.0.0.1:5177/benchlocal.pack.json` once; subsequent demos use
+the same pack URL. Conversation mode requires the manifest's declared
+`media:microphone` capability and macOS microphone access for BenchLocal.
+
 [![CI](https://github.com/AustinKelsay/realtime-voice-arena/actions/workflows/ci.yml/badge.svg)](https://github.com/AustinKelsay/realtime-voice-arena/actions/workflows/ci.yml)
 
 An independently versioned BenchLocal web pack extracted from the

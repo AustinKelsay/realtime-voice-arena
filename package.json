@@ -1,9 +1,10 @@
 {
   "name": "realtime-voice-arena",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "scripts": {
+    "demo": "node demo-local.mjs",
     "dev": "node server.mjs",
     "build": "vite build",
     "test": "node --test"

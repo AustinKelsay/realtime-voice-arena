@@ -122,10 +122,14 @@ test("UI exposes only the continuous conversation controls and states", () => {
 
 test("history schema is content-free and model identity is PersonaPlex", () => {
   const manifest = JSON.parse(read("benchlocal.pack.json"));
-  assert.equal(manifest.version, "0.4.0");
+  assert.equal(manifest.version, "0.4.1");
   assert.equal(manifest.capabilities.multiTurn, true);
-  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.4\.0/);
+  assert.match(JSON.stringify(manifest), /realtime-voice-arena-0\.4\.1/);
   assert.match(JSON.stringify(manifest), /personaplex/i);
+  assert.ok(
+    manifest.web.permissions.includes("media:microphone"),
+    "the Voice Arena must request BenchLocal microphone capability",
+  );
 
   const metadata = sessionHistoryMetadata({
     status: "stopped",
