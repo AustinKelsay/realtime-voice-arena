@@ -107,12 +107,16 @@ byte-preserving; optional server semantic frames are validated and ignored.
 
 ```bash
 npm install
-npm test
-npm run build
-npm run dev
+npm run demo
 ```
 
-Install `http://127.0.0.1:5177/benchlocal.pack.json` in BenchLocal. The pack
+`npm run demo` installs or repairs the durable local relay, checks the real
+PersonaPlex handshake, refreshes the installed Voice Arena snapshot through
+BenchLocal's own installer, and opens BenchLocal. It expects the BenchLocal
+checkout at `~/Desktop/Projects/BenchLocal`; set `BENCHLOCAL_REPO` when it is
+elsewhere. There is no stale-pack reinstall step.
+
+The pack
 requires a caller key authorized for the Finite realtime gateway; publishing
 this client does not publish that credential or grant access to the service.
 The Text repeat tab additionally requires macOS because its ephemeral input
