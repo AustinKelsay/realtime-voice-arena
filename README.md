@@ -111,13 +111,15 @@ the loopback relay directly against the fixed Spark PersonaPlex endpoint:
 
 ```bash
 BENCHLOCAL_PERSONAPLEX_DIRECT=true \
-BENCHLOCAL_REALTIME_API_KEY_FILE=/path/to/private-upstream-token \
   npm run dev
 ```
 
 Direct mode remains bound to `127.0.0.1`, accepts only the compiled roster IDs,
 and resolves each ID to its fixed bundled voice and text prompts. It is a local
 recovery path only; it does not publish or admit the public realtime route.
+When no explicit credential is supplied, startup reads the fixed upstream token
+directly into memory over batch-mode SSH from the pinned Spark path. It does not
+write a local token copy.
 
 Tagged releases contain a standalone bundle with the built UI, local
 credential relay, source, tests, and manifest. After extracting a release, run

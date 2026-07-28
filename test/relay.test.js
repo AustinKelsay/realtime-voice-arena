@@ -5,7 +5,7 @@ import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket, { WebSocketServer } from "ws";
-import { attachRealtimeRelay, loadCredential, MAX_PENDING_BYTES } from "../server.mjs";
+import { attachRealtimeRelay, loadCredential, loadDirectCredential, MAX_PENDING_BYTES } from "../server.mjs";
 import { MAX_SERVER_FRAME_BYTES } from "../src/protocol.js";
 
 const active = [];
@@ -198,4 +198,31 @@ test("credential seam prefers explicit env and otherwise requires a private loca
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("direct recovery credential is read in memory from only the pinned Spark path", () => {
+  let invocation;
+  const credential = loadDirectCredential({
+    execFileSyncImpl(program, args, options) {
+      invocation = { program, args, options };
+      return " upstream-token \n";
+    },
+  });
+  assert.equal(credential, "upstream-token");
+  assert.equal(invocation.program, "/usr/bin/ssh");
+  assert.deepEqual(invocation.args, [
+    "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=5",
+    "finite@100.69.70.86",
+    "cat /home/finite/personaplex-runtime/upstream.token",
+  ]);
+  assert.equal(invocation.options.encoding, "utf8");
+  assert.throws(
+    () => loadDirectCredential({ execFileSyncImpl: () => "\n" }),
+    /unavailable/,
+  );
+  assert.throws(
+    () => loadDirectCredential({ execFileSyncImpl: () => "bad\u0000token" }),
+    /unavailable/,
+  );
 });

@@ -1,4 +1,5 @@
 import http from "node:http";
+import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -31,6 +32,25 @@ export function loadCredential({ env = process.env, filePath = env.BENCHLOCAL_RE
     return credential;
   } catch (error) {
     if (error instanceof Error && error.message.includes("permissions")) throw error;
+    throw new Error("Realtime credential was unavailable.");
+  }
+}
+
+export function loadDirectCredential({ execFileSyncImpl = execFileSync } = {}) {
+  try {
+    const credential = execFileSyncImpl(
+      "/usr/bin/ssh",
+      [
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=5",
+        "finite@100.69.70.86",
+        "cat /home/finite/personaplex-runtime/upstream.token",
+      ],
+      { encoding: "utf8", maxBuffer: 1024 },
+    ).trim();
+    if (!VALID_CREDENTIAL(credential)) throw new Error("invalid direct credential");
+    return credential;
+  } catch {
     throw new Error("Realtime credential was unavailable.");
   }
 }
@@ -185,7 +205,7 @@ export async function startServer({
   port = PORT,
   directUpstream = process.env.BENCHLOCAL_PERSONAPLEX_DIRECT === "true",
 } = {}) {
-  credential ||= await loadCredential();
+  credential ||= directUpstream ? loadDirectCredential() : await loadCredential();
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
   const origin = `http://${HOST}:${port}`;
   const speechInput = createSpeechInputHandler({ origin });
