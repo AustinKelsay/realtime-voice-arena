@@ -7,7 +7,7 @@ npm run demo
 ```
 
 This installs or refreshes the durable loopback relay, waits for the pack to
-become ready, proves one named PersonaPlex connection, and opens BenchLocal.
+become ready, proves the base PersonaPlex connection, and opens BenchLocal.
 Install `http://127.0.0.1:5177/benchlocal.pack.json` once; subsequent demos use
 the same pack URL. Conversation mode requires the manifest's declared
 `media:microphone` capability and macOS microphone access for BenchLocal.
@@ -19,15 +19,12 @@ finitecomputer/spark-cluster monorepo. This repository is the authoritative
 source for the pack; the Spark cluster consumes it as a pinned dependency.
 
 This BenchLocal web pack is the trusted evaluation surface for PersonaPlex 7B
-v1. Before starting, the operator chooses one of
-twelve neutral named voice identities backed only by NVIDIA's bundled voice
-prompts. Names do not assign professions, specialties, or task-specific
-characters.
+v1. It intentionally uses the unnamed base-model voice, without a custom voice
+prompt, injected name/persona instruction, or roster. The retired experiment
+and lessons are recorded in [Custom voice experiment](docs/custom-voice-experiment.md).
 
-The **Conversation** tab uses one shared audition cue so the voices can be
-compared on equal footing. Start conversation
-requests the microphone, opens the local binary relay, waits for the
-PersonaPlex handshake, and then streams mono Ogg/Opus pages at 24 kHz while
+The **Conversation** tab requests the microphone, opens the local binary relay,
+waits for the PersonaPlex handshake, and then streams mono Ogg/Opus pages at 24 kHz while
 response audio is decoded and played continuously. Stop conversation releases
 every browser resource and closes the session. While assistant audio is active,
 a local speech-onset gate flushes the playback queue and suppresses response
@@ -35,23 +32,20 @@ playback while the user is speaking; the suppression remains latched until
 PersonaPlex yields an audible gap. The WebSocket remains open so PersonaPlex
 keeps the same conversation context.
 
-The **Text repeat** tab has its own synchronized voice selector and an
-800-character text area. Speak text sends the pasted value only to a
-loopback-only, same-origin endpoint. The local macOS `say` and `afconvert`
+The **Text repeat** tab has an 800-character text area. Speak text sends the
+pasted value only to a loopback-only, same-origin endpoint. The local macOS `say` and `afconvert`
 tools turn it into a short spoken instruction without putting text in a URL or
 process argument. The browser decodes that ephemeral WAV, streams it through
-the same Ogg/Opus PersonaPlex session, and plays the selected voice's response.
+the same Ogg/Opus PersonaPlex session, and plays the base voice's response.
 The temporary local files are removed before the request completes. The text,
 instruction audio, response audio, and semantic output are never written to
 BenchLocal history or application logs. Text repeat is an instruction-following
 audition, so PersonaPlex can paraphrase or add words; it is not a deterministic
 TTS endpoint.
 
-The selector is a candidate evaluation surface, not an admitted production
-capability. Its relay requires a gateway running the matching
-fingerprint-bound promotion attempt with persona selection enabled. The
-currently admitted no-query route remains the unnamed legacy
-teacher/`NATF2.pt` compatibility preset and does not prove any named persona.
+The no-query transport is deliberate: custom voice and persona conditioning
+materially regressed voice quality, conversational quality, and the overall
+realtime experience.
 
 ## Client architecture
 
@@ -61,7 +55,7 @@ The browser client has one deliberately deep lifecycle boundary:
   generation fencing, audio and transport resource ownership, handshake and
   frame routing, interruption playback yield, stop/error cleanup, and
   content-free history finalization. Its caller-facing surface is limited to
-  persona selection, microphone start, pasted-text start, stop, history restore,
+  microphone start, pasted-text start, stop, history restore,
   and state snapshots.
 - `src/browser-platform.js` is the browser system-boundary adapter. It pins the
   AudioContext, AudioWorklet, Opus recorder, decoder worker, WebSocket,
@@ -89,7 +83,7 @@ only for literal UI/legacy-policy assertions; codec and lifecycle contracts are
 verified through behavior.
 
 The browser connects only to
-`ws://127.0.0.1:5177/realtime?persona=<allowlisted-id>`. The Loopback
+`ws://127.0.0.1:5177/realtime` with no query parameters. The Loopback
 Credential Relay loads the operator trust domain's normal Pi API Key Gateway
 caller key from `~/.config/finite/benchlocal-realtime.key` (the compatibility
 default filename) or the `BENCHLOCAL_REALTIME_API_KEY_FILE` override, requiring
@@ -97,10 +91,9 @@ mode `0600`; `BENCHLOCAL_REALTIME_API_KEY` is an explicit ephemeral override.
 The key must grant the `finite-realtime-session-gateway` API definition. It is
 not a second BenchLocal authentication system and must never reuse the protected
 `finite-specialization` key. The relay authenticates the fixed public endpoint
-`wss://inference.finite.computer/v1/realtime` and forwards only the validated
-persona ID. Both relays independently reject unknown IDs, duplicate values,
-extra query parameters, filenames, and paths. The credential never reaches the
-page, history, or logs. Both directions are binary-only, bounded, and
+`wss://inference.finite.computer/v1/realtime` without adding voice or persona
+parameters. The relay rejects all query parameters and alternate paths. The
+credential never reaches the page, history, or logs. Both directions are binary-only, bounded, and
 byte-preserving; optional server semantic frames are validated and ignored.
 
 ## Run locally
@@ -130,9 +123,9 @@ BENCHLOCAL_PERSONAPLEX_DIRECT=true \
   npm run dev
 ```
 
-Direct mode remains bound to `127.0.0.1`, accepts only the compiled roster IDs,
-and resolves each ID to its fixed bundled voice and text prompts. It is a local
-recovery path only; it does not publish or admit the public realtime route.
+Direct mode remains bound to `127.0.0.1` and explicitly supplies the same
+unnamed `NATF2.pt` teacher preset that the public no-query gateway uses. It is a
+local recovery path only; it does not publish or admit the public realtime route.
 When no explicit credential is supplied, startup reads the fixed upstream token
 directly into memory over batch-mode SSH from the pinned Spark path. It does not
 write a local token copy.
@@ -178,10 +171,9 @@ not model weights or the Spark deployment.
   about 60 ms of speech, tolerates about 240 ms of pauses inside the user's
   phrase, then keeps playback yielded until PersonaPlex supplies about 320 ms
   of silence. It never sends a turn-commit or closes the continuous session.
-- Persona selection is locked while a conversation is active. All twelve
-  named roster entries, including `sora-bennett`, are selected only by their
-  opaque allowlisted IDs. The gateway's unnamed no-query compatibility preset
-  remains separate.
+- The base voice is fixed for every session. The browser uses the public
+  no-query contract; direct recovery supplies its equivalent fixed `NATF2.pt`
+  teacher preset. Neither path accepts a custom voice or persona identity.
 - Pasted text is limited to 800 Unicode characters. `/speech-input` accepts
   only loopback, exact-origin `POST application/json` requests, returns
   `Cache-Control: no-store`, and never forwards literal text to the realtime

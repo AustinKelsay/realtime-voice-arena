@@ -71,10 +71,6 @@ export function createBrowserPlatform({
       monitorGain: 0,
       recordingGain: 1,
     }),
-    createSocket: (personaId) => {
-      const url = new URL(`ws://${locationHost}/realtime`);
-      url.searchParams.set("persona", personaId);
-      return new WebSocketClass(url.toString());
-    },
+    createSocket: () => new WebSocketClass(`ws://${locationHost}/realtime`),
   });
 }

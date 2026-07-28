@@ -272,26 +272,17 @@ test("conversation runtime owns a complete start, handshake, stream, and stop li
   assert.deepEqual(Object.keys(history.metadata).sort(), ["bargeIns", "durationMs", "inputBytes", "inputFrames", "model", "outputBytes", "outputFrames", "status", "terminalReason"].sort());
 });
 
-test("conversation runtime locks the selected persona for one active session", async () => {
+test("conversation runtime exposes no custom persona selection surface", async () => {
   const harness = createHarness();
-  assert.equal(harness.runtime.getState().personaId, "sora-bennett");
-
-  harness.runtime.selectPersona("mira-vale");
-  assert.equal(harness.runtime.getState().personaId, "mira-vale");
+  assert.equal(harness.runtime.getState().personaId, undefined);
+  assert.equal(harness.runtime.selectPersona, undefined);
   await startLive(harness);
-  assert.equal(harness.platform.personaId, "mira-vale");
-  assert.throws(() => harness.runtime.selectPersona("otis-blake"), /active conversation/);
-
+  assert.equal(harness.platform.personaId, undefined);
   await harness.runtime.stop();
-  harness.runtime.selectPersona("otis-blake");
-  assert.equal(harness.runtime.getState().personaId, "otis-blake");
-  assert.throws(() => harness.runtime.selectPersona("unknown"), /Unknown PersonaPlex persona/);
 });
 
 test("text-repeat session starts ephemeral pasted-text audio after the PersonaPlex handshake", async () => {
   const harness = createHarness();
-  harness.runtime.selectPersona("otis-blake");
-
   const starting = harness.runtime.startText("The quick brown fox.");
   await waitFor(() => harness.platform.socket);
   harness.platform.socket.open();
@@ -299,7 +290,7 @@ test("text-repeat session starts ephemeral pasted-text audio after the PersonaPl
   assert.equal(harness.textCaptureText, "The quick brown fox.");
   assert.equal(harness.textCaptureStarted, false);
   assert.equal(harness.captureConstraints, undefined);
-  assert.equal(harness.platform.personaId, "otis-blake");
+  assert.equal(harness.platform.personaId, undefined);
 
   harness.platform.socket.emit("message", { data: new Uint8Array([0x00]).buffer });
   await waitFor(() => harness.textCaptureStarted);

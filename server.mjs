@@ -8,7 +8,6 @@ import { createServer as createViteServer } from "vite";
 import WebSocket, { WebSocketServer } from "ws";
 import { createSpeechInputHandler } from "./speech-input.mjs";
 import { MAX_CLIENT_FRAME_BYTES, MAX_RELAY_PENDING_BYTES, MAX_SERVER_FRAME_BYTES, PROTOCOL, createSession, validateFrame } from "./src/protocol.js";
-import { DEFAULT_PERSONA_ID, findPersona } from "./src/persona-roster.js";
 
 export const HOST = "127.0.0.1";
 export const PORT = Number(process.env.REALTIME_VOICE_BENCH_PORT || 5177);
@@ -21,6 +20,8 @@ export const DIRECT_RECOVERY_TARGET = Object.freeze({
   tokenPath: "/home/finite/personaplex-runtime/upstream.token",
 });
 export const DIRECT_UPSTREAM = `ws://${DIRECT_RECOVERY_TARGET.host}:${DIRECT_RECOVERY_TARGET.websocketPort}${DIRECT_RECOVERY_TARGET.websocketPath}`;
+export const BASE_VOICE_PROMPT = "NATF2.pt";
+export const BASE_TEXT_PROMPT = "You are a wise and friendly teacher. Answer questions or provide advice in a clear and engaging way.";
 export const MAX_PENDING_BYTES = MAX_RELAY_PENDING_BYTES;
 const DEFAULT_KEY_PATH = join(homedir(), ".config", "finite", "benchlocal-realtime.key");
 const VALID_CREDENTIAL = (value) => value && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value);
@@ -90,35 +91,24 @@ export function attachRealtimeRelay(server, { credential, upstreamUrl = UPSTREAM
 
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url, `http://${HOST}`);
-    const keys = [...url.searchParams.keys()];
-    const personaValues = url.searchParams.getAll("persona");
-    const personaId = personaValues[0] ?? DEFAULT_PERSONA_ID;
     if (
       url.pathname !== "/realtime"
-      || keys.some((key) => key !== "persona")
-      || personaValues.length > 1
-      || !findPersona(personaId)
+      || url.search !== ""
       || request.headers.origin !== origin
       || !isLoopback(request.socket.remoteAddress)
     ) return rejectUpgrade(socket);
     localSockets.handleUpgrade(request, socket, head, (client) => {
-      localSockets.emit("connection", client, request, personaId);
+      localSockets.emit("connection", client, request);
     });
   });
 
-  localSockets.on("connection", (client, _request, personaId) => {
+  localSockets.on("connection", (client) => {
     let upstream;
     try {
       const selectedUpstream = new URL(upstreamUrl);
       if (directUpstream) {
-        const persona = findPersona(personaId);
-        selectedUpstream.searchParams.set("voice_prompt", persona.voicePrompt);
-        selectedUpstream.searchParams.set(
-          "text_prompt",
-          `You enjoy having a good conversation. Your name is ${persona.name}. Speak naturally and conversationally. Be warm, attentive, and easy to talk with.`,
-        );
-      } else {
-        selectedUpstream.searchParams.set("persona", personaId);
+        selectedUpstream.searchParams.set("voice_prompt", BASE_VOICE_PROMPT);
+        selectedUpstream.searchParams.set("text_prompt", BASE_TEXT_PROMPT);
       }
       upstream = new WebSocketCtor(selectedUpstream, { headers: { Authorization: `Bearer ${credential}` }, handshakeTimeout: 10_000, maxPayload: MAX_SERVER_FRAME_BYTES });
     } catch {

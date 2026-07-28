@@ -5,8 +5,8 @@
   "id": "realtime-voice-arena",
   "name": "Realtime Voice Arena",
   "author": "finitecomputer",
-  "version": "0.4.1",
-  "description": "PersonaPlex 7B v1 evaluation surface with conversation and ephemeral pasted-text repeat tabs across twelve neutral named bundled voices.",
+  "version": "0.5.0",
+  "description": "PersonaPlex 7B v1 base-voice evaluation surface with conversation and ephemeral pasted-text repeat tabs.",
   "requirements": { "benchlocal": { "minVersion": "0.3.0" } },
   "entry": "http://127.0.0.1:5177/",
   "web": {
@@ -14,7 +14,7 @@
     "allowedOrigins": ["http://127.0.0.1:5177"],
     "permissions": ["runs:write", "history:read", "history:write", "media:microphone"],
     "historyPlayback": true,
-    "buildId": "realtime-voice-arena-0.4.1",
+    "buildId": "realtime-voice-arena-0.5.0",
     "dataPolicy": {
       "mayUseRemoteServices": true,
       "remoteOrigins": ["wss://inference.finite.computer"],

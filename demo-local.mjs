@@ -22,7 +22,7 @@ export function requireDemoContract() {
   }
 }
 
-export async function waitForRelay(attempts = 15, fetchImpl = fetch) {
+export async function waitForRelay(attempts = 40, fetchImpl = fetch) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const response = await fetchImpl(packUrl, { cache: "no-store" });
@@ -35,9 +35,9 @@ export async function waitForRelay(attempts = 15, fetchImpl = fetch) {
   throw new Error("BenchLocal relay did not become ready on 127.0.0.1:5177.");
 }
 
-export async function proveNamedPersona(persona = "sora-bennett", WebSocketImpl = WebSocket) {
+export async function proveBaseVoice(WebSocketImpl = WebSocket) {
   await new Promise((resolve, reject) => {
-    const socket = new WebSocketImpl(`ws://127.0.0.1:5177/realtime?persona=${persona}`, {
+    const socket = new WebSocketImpl("ws://127.0.0.1:5177/realtime", {
       headers: { Origin: "http://127.0.0.1:5177" },
       handshakeTimeout: 10_000,
     });
@@ -89,10 +89,11 @@ export async function runDemo() {
   requireDemoContract();
   installLaunchAgent();
   await waitForRelay();
-  await proveNamedPersona();
+  await proveBaseVoice();
   await refreshInstalledPack();
   execFileSync("/usr/bin/open", ["-a", "BenchLocal"], { stdio: "ignore" });
-  process.stdout.write(`Realtime Voice Arena 0.4.1 refreshed and ready: ${packUrl}\n`);
+  const version = JSON.parse(readFileSync(join(root, "benchlocal.pack.json"), "utf8")).version;
+  process.stdout.write(`Realtime Voice Arena ${version} refreshed and ready: ${packUrl}\n`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

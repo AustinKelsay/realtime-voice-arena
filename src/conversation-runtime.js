@@ -1,7 +1,6 @@
 import { acquireCapture, acquirePlayback } from "./audio-resources.js";
 import { createBargeInGate } from "./barge-in-gate.js";
 import { createDecoderPrewarm } from "./decoder-prewarm.js";
-import { DEFAULT_PERSONA_ID, findPersona } from "./persona-roster.js";
 import { normalizeRepeatText } from "./repeat-contract.js";
 import {
   AUDIO_RATE,
@@ -87,7 +86,6 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     runStartPromise: null,
     historyMode: false,
     generation: 0,
-    personaId: DEFAULT_PERSONA_ID,
   };
 
   function getState() {
@@ -96,7 +94,6 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
       historyMode: state.historyMode,
       finalizing: state.finalizing,
       playbackLimitMs: MAX_JITTER_MS,
-      personaId: state.personaId,
     };
   }
 
@@ -296,7 +293,7 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
 
   function openSocket(generation) {
     return new Promise((resolve, reject) => {
-      const socket = platform.createSocket(state.personaId);
+      const socket = platform.createSocket();
       socket.binaryType = "arraybuffer";
       state.socket = socket;
       let opened = false;
@@ -501,15 +498,6 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     emitState();
   }
 
-  function selectPersona(personaId) {
-    if (!findPersona(personaId)) throw new Error("Unknown PersonaPlex persona.");
-    if (ACTIVE_STATUSES.has(state.session.status) || state.finalizing || state.historyMode) {
-      throw new Error("Cannot change persona during an active conversation.");
-    }
-    state.personaId = personaId;
-    emitState();
-  }
-
   let starting = null;
   let stopping = null;
 
@@ -553,7 +541,6 @@ export function createConversationRuntime({ benchlocal, platform, onStateChange 
     start,
     startText,
     stop,
-    selectPersona,
     restoreHistory,
     getState,
   });

@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createConversationView } from "../src/conversation-view.js";
-import { DEFAULT_PERSONA_ID, PERSONA_ROSTER } from "../src/persona-roster.js";
 
 class FakeElement {
   constructor() {
@@ -35,9 +34,6 @@ class FakeApp {
       ["#orb-status", new FakeElement()],
       ["#start", new FakeElement()],
       ["#stop", new FakeElement()],
-      ["#persona", new FakeElement()],
-      ["#persona-summary", new FakeElement()],
-      ["#persona-cue", new FakeElement()],
       ["#metrics", new FakeElement()],
       ["#input-metric", new FakeElement()],
       ["#output-metric", new FakeElement()],
@@ -48,7 +44,6 @@ class FakeApp {
       ["#repeat-tab", new FakeElement()],
       ["#conversation-panel", new FakeElement()],
       ["#repeat-panel", new FakeElement()],
-      ["#repeat-persona", new FakeElement()],
       ["#repeat-text", new FakeElement()],
       ["#repeat-start", new FakeElement()],
       ["#repeat-stop", new FakeElement()],
@@ -91,7 +86,6 @@ test("live counter updates preserve the stop control and its listener", () => {
   let stops = 0;
   const view = createConversationView({
     app,
-    onPersonaChange() {},
     onStart() {},
     onRepeat() {},
     onStop() { stops += 1; },
@@ -112,40 +106,25 @@ test("live counter updates preserve the stop control and its listener", () => {
   assert.equal(stops, 1);
 });
 
-test("operator can choose one of twelve default personas before a conversation", () => {
+test("operator gets the base model voice without a persona selector", () => {
   const app = new FakeApp();
-  const selected = [];
   const view = createConversationView({
     app,
-    onPersonaChange(personaId) { selected.push(personaId); },
     onStart() {},
     onRepeat() {},
     onStop() {},
   });
 
-  assert.equal(PERSONA_ROSTER.length, 12);
-  assert.match(app.html, /Sora Bennett/);
-  assert.match(app.html, /Otis Blake/);
-  view.render({ ...snapshot({ status: "ready", startedAt: null }), personaId: DEFAULT_PERSONA_ID });
-  assert.equal(app.querySelector("#persona").value, DEFAULT_PERSONA_ID);
-  assert.equal(app.querySelector("#persona").disabled, false);
-  assert.match(app.querySelector("#persona-summary").textContent, /warm and composed/i);
-  assert.match(app.querySelector("#persona-cue").textContent, /Introduce yourself/i);
-
-  app.querySelector("#persona").change("mira-vale");
-  assert.deepEqual(selected, ["mira-vale"]);
-  view.render({ ...snapshot(), personaId: "mira-vale" });
-  assert.equal(app.querySelector("#persona").disabled, true);
-  assert.match(app.querySelector("#persona-summary").textContent, /clear and curious/i);
+  assert.match(app.html, /base-model voice/i);
+  assert.doesNotMatch(app.html, /Voice roster|Sora Bennett|Otis Blake/);
+  view.render(snapshot({ status: "ready", startedAt: null }));
 });
 
-test("operator can select a voice and submit pasted text from a second tab", () => {
+test("operator can submit pasted text to the base voice from a second tab", () => {
   const app = new FakeApp();
-  const selected = [];
   const repeated = [];
   const view = createConversationView({
     app,
-    onPersonaChange(personaId) { selected.push(personaId); },
     onStart() {},
     onRepeat(text) { repeated.push(text); },
     onStop() {},
@@ -153,14 +132,11 @@ test("operator can select a voice and submit pasted text from a second tab", () 
 
   assert.match(app.html, /Conversation/);
   assert.match(app.html, /Text repeat/);
-  assert.match(app.html, /Paste text for the selected voice/i);
+  assert.match(app.html, /Paste text for the base voice/i);
 
   app.querySelector("#repeat-tab").click();
   assert.equal(app.querySelector("#conversation-panel").hidden, true);
   assert.equal(app.querySelector("#repeat-panel").hidden, false);
-
-  app.querySelector("#repeat-persona").change("otis-blake");
-  assert.deepEqual(selected, ["otis-blake"]);
 
   app.querySelector("#repeat-text").value = "  The quick brown fox.  ";
   app.querySelector("#repeat-start").click();
@@ -174,23 +150,10 @@ test("operator can select a voice and submit pasted text from a second tab", () 
   assert.equal(repeated.length, 2);
   assert.match(app.querySelector("#repeat-validation").textContent, /800 characters/);
 
-  view.render({ ...snapshot({ status: "ready", startedAt: null }), personaId: "otis-blake" });
-  assert.equal(app.querySelector("#repeat-persona").value, "otis-blake");
+  view.render(snapshot({ status: "ready", startedAt: null }));
   assert.equal(app.querySelector("#repeat-start").disabled, false);
   assert.equal(app.querySelector("#repeat-text").disabled, false);
 
-  view.render({ ...snapshot(), personaId: "otis-blake" });
+  view.render(snapshot());
   assert.equal(app.querySelector("#repeat-text").disabled, true);
-});
-
-test("roster presents neutral named voices instead of task-specific characters", () => {
-  const taskLanguage = /\b(?:coach|concierge|coordinator|guide|host|master|mentor|planner|producer|storyteller)\b/i;
-  const cues = new Set(PERSONA_ROSTER.map((persona) => persona.auditionCue));
-
-  assert.deepEqual([...cues], [
-    "Please introduce yourself, then tell me what makes a conversation enjoyable. Take your time and speak naturally.",
-  ]);
-  for (const persona of PERSONA_ROSTER) {
-    assert.doesNotMatch(persona.summary, taskLanguage);
-  }
 });

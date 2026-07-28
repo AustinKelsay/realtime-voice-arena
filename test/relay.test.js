@@ -5,7 +5,7 @@ import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket, { WebSocketServer } from "ws";
-import { attachRealtimeRelay, loadCredential, loadDirectCredential, MAX_PENDING_BYTES } from "../server.mjs";
+import { attachRealtimeRelay, BASE_TEXT_PROMPT, BASE_VOICE_PROMPT, loadCredential, loadDirectCredential, MAX_PENDING_BYTES } from "../server.mjs";
 import { MAX_SERVER_FRAME_BYTES } from "../src/protocol.js";
 
 const active = [];
@@ -57,7 +57,7 @@ test("relay authenticates upstream and preserves binary Persona frames", async (
     setTimeout(() => socket.send(new Uint8Array([0x02, 0x6f, 0x6b])), 10);
     socket.on("message", (frame, binary) => { assert.equal(binary, true); socket.send(frame, { binary: true }); });
   });
-  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime?persona=mira-vale`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
+  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime`, { headers: { Origin: `http://127.0.0.1:${relayPort}` } });
   const [handshake] = await once(client, "message");
   assert.deepEqual([...handshake], [0]);
   const [semantic] = await once(client, "message");
@@ -67,24 +67,24 @@ test("relay authenticates upstream and preserves binary Persona frames", async (
   const [echo] = await once(client, "message");
   assert.deepEqual([...echo], [...payload]);
   assert.equal(authorization, "Bearer test-key");
-  assert.equal(upstreamRequestUrl, "/?persona=mira-vale");
+  assert.equal(upstreamRequestUrl, "/");
   client.close();
 });
 
-test("loopback-only direct recovery resolves the selected persona to fixed upstream prompts", async () => {
+test("loopback-only direct recovery supplies the fixed base-model preset", async () => {
   const { upstreamWss, relayPort } = await fixture({ directUpstream: true });
   let upstreamRequestUrl;
   upstreamWss.on("connection", (socket, request) => {
     upstreamRequestUrl = request.url;
     socket.send(new Uint8Array([0x00]));
   });
-  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime?persona=otis-blake`, {
+  const client = new WebSocket(`ws://127.0.0.1:${relayPort}/realtime`, {
     headers: { Origin: `http://127.0.0.1:${relayPort}` },
   });
   await once(client, "message");
   const parsed = new URL(upstreamRequestUrl, "ws://upstream.invalid");
-  assert.equal(parsed.searchParams.get("voice_prompt"), "VARM2.pt");
-  assert.match(parsed.searchParams.get("text_prompt"), /Your name is Otis Blake/);
+  assert.equal(parsed.searchParams.get("voice_prompt"), BASE_VOICE_PROMPT);
+  assert.equal(parsed.searchParams.get("text_prompt"), BASE_TEXT_PROMPT);
   assert.equal(parsed.searchParams.has("persona"), false);
   client.close();
 });
